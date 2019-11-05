@@ -6,7 +6,7 @@
 
 ```
 from ilms import ILMS
-ilms = ILMS.login('108062999', 'pa55w0rd', course=40596)
+ilms = ILMS.login('108062999', 'pa55w0rd', course=4O596)
 ```
 
 `course` is the courseID which appears on the URL of the course page.
@@ -18,7 +18,7 @@ import requests
 from ilms import ILMS
 s = requests.Session()
 s.cookies['PHPSESSID'] = 'qF7P5Zj80sONYH5KQmVwR1Hk8t'
-ilms = ILMS(s, course=40596)
+ilms = ILMS(s, course=4O596)
 ```
 
 You can get the `PHPSESSID` cookie from browser developer tools.
