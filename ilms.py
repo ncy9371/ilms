@@ -19,23 +19,23 @@ def form_multipart(d):
 
 
 class ILMS:
-    def __init__(self):
-        self.groups = None
-        print("!!! please init by calling init_by_cookies or init_by_login first !!!\n")
-
-    def init_by_cookies(self, cookie_string, course, homework):
-        self.sess = requests.Session()
-        for cookie in cookie_string.split(";"):
-            equalpos = cookie.find("=")
-            key, val = cookie[:equalpos].strip(), cookie[equalpos+1:].strip()
-            self.sess.cookies.set(name=key, value=val)
+    def __init__(self, session, *, course, homework=None):
+        self.sess = session
         self.course = course
         self.homework = homework
+        self.show_course_info()
         self.students = self.fetch_students()
+        self.groups = None
 
-    def init_by_login(self, account, password, course, homework):
-        self.sess = requests.Session()
-        resp = self.sess.get(
+    @classmethod
+    def login(cls, account, password, *, course, homework=None):
+        """
+        create an ILMS object by account and password.
+
+        course: the courseID at the URL.
+        """
+        sess = requests.Session()
+        resp = sess.get(
             'https://lms.nthu.edu.tw/sys/lib/ajax/login_submit.php',
             params={
                 'account': account,
@@ -45,9 +45,15 @@ class ILMS:
         j = resp.json()
         if j['ret']['status'] != "true":
             raise LoginFailed(resp.json())
-        self.course = course
-        self.homework = homework
-        self.students = self.fetch_students()
+        return cls(sess, course=course, homework=homework)
+
+    def show_course_info(self):
+        resp = self.sess.get(f'http://lms.nthu.edu.tw/course/{self.course}')
+        html = lxml.html.fromstring(resp.content)
+        course_name, = html.xpath(
+            '//select[@onchange="changeCourse(this)"]/'
+            'option[@selected]/text()')
+        print('Course:', course_name)
 
     def fetch_students(self):
         students = {}
@@ -83,10 +89,54 @@ class ILMS:
             members = []
             for member_tr in member_trs:
                 members.append(member_tr.xpath('td[2]/div')[0].text)
-            groups.append(members)
+            teamIDstart = memberurl.find("teamID")
+            teamIDend = memberurl.find("&", teamIDstart)
+            groups.append({'teamID': memberurl[teamIDstart+7:(teamIDend if teamIDend!=-1 else None)], 'members': members})
         print(len(groups), 'groups')
         self.groups = groups
         return groups
+
+    def set_team_scores(self, teamNumber, members_scores):
+        """
+            teamNumber: team number start from 1,
+            members_scores: {'student_id1': 'score1', 'student_id2': 'score2'}
+        """
+        if self.groups == None:
+            raise AddScoreFailed("fetch_groups() before set_team_scores()")
+        teamID = self.groups[teamNumber-1]['teamID']
+        scores = []
+        for mem in members_scores:
+            scores.append(self.students[mem] + ':' + members_scores[mem])
+        scores_str = ','.join(scores)
+        hw_list_resp = self.sess.get(
+            'http://lms.nthu.edu.tw/course.php',
+            params={'f': 'hw_doclist', 'courseID': self.course, 'hw': self.homework})
+        hw_list_html = lxml.html.fromstring(hw_list_resp.content)
+        table, = hw_list_html.xpath('//*[@id="t1"]')
+        trs = table.xpath('tr[@class!="header"]')
+        submitted = False
+        for tr in trs:
+            td_a = tr.xpath('td/a')[0]
+            if td_a.attrib['href'].find(teamID) != -1:
+                if td_a.text == '修改':
+                    submitted = True
+                break
+        resp = self.sess.post(
+            'http://lms.nthu.edu.tw/course/score/http_update_group_score.php',
+            headers={'Referer': 'http://lms.nthu.edu.tw/course/hw_group_score.php?courseID=%s&folderID=%s&teamID=%s' % (str(self.course), str(self.homework), teamID)},
+            data={
+                'paper': 0,
+                'courseID': self.course,
+                'folderID': self.homework,
+                'teamID': teamID,
+                '_public': 0,
+                'status': 1,
+                'scoreNote': ' ',
+                'updateNewScore': (scores_str if submitted else 'NULL'),
+                'insertNewScore': ('NULL' if submitted else scores_str)
+            }
+        )
+        return resp
 
     def fetch_submissions(self):
         resp = self.sess.get(
