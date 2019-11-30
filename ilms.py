@@ -90,7 +90,7 @@ class ILMS:
             for member_tr in member_trs:
                 members.append(member_tr.xpath('td[2]/div')[0].text)
             qs = urllib.parse.parse_qs(memberurl)
-            groups.append({'teamID': qs['teamID'], 'members': members})
+            groups.append({'teamID': qs['teamID'][0], 'members': members})
         print(len(groups), 'groups')
         self.groups = groups
         return groups
@@ -106,7 +106,7 @@ class ILMS:
         teamID = self.groups[team_number-1]['teamID']
         scores = []
         for mem in members_scores:
-            scores.append(self.students[mem] + ':' + members_scores[mem])
+            scores.append(self.students[mem] + ':' + str(members_scores[mem]))
         scores_str = ','.join(scores)
         hw_list_resp = self.sess.get(
             'http://lms.nthu.edu.tw/course.php',
@@ -123,7 +123,7 @@ class ILMS:
                 break
         resp = self.sess.post(
             'http://lms.nthu.edu.tw/course/score/http_update_group_score.php',
-            headers={'Referer': 'http://lms.nthu.edu.tw/course/hw_group_score.php?courseID=%s&folderID=%s&teamID=%s' % (str(self.course), str(self.homework), teamID)},
+            headers={'Referer': 'http://lms.nthu.edu.tw/course/hw_group_score.php'},
             data={
                 'paper': 0,
                 'courseID': self.course,
