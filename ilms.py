@@ -89,21 +89,21 @@ class ILMS:
             members = []
             for member_tr in member_trs:
                 members.append(member_tr.xpath('td[2]/div')[0].text)
-            teamIDstart = memberurl.find("teamID")
-            teamIDend = memberurl.find("&", teamIDstart)
-            groups.append({'teamID': memberurl[teamIDstart+7:(teamIDend if teamIDend!=-1 else None)], 'members': members})
+            qs = urllib.parse.parse_qs(memberurl)
+            groups.append({'teamID': qs['teamID'], 'members': members})
         print(len(groups), 'groups')
         self.groups = groups
         return groups
 
-    def set_team_scores(self, teamNumber, members_scores):
+    def set_team_scores(self, team_number, members_scores):
         """
-            teamNumber: team number start from 1,
-            members_scores: {'student_id1': 'score1', 'student_id2': 'score2'}
+            team_number: team number, starting at 1
+            member_scores: dict of student id => scores,
+                for example: {'108080111': 99, '108090222': 88}
         """
-        if self.groups == None:
+        if self.groups is None:
             raise AddScoreFailed("fetch_groups() before set_team_scores()")
-        teamID = self.groups[teamNumber-1]['teamID']
+        teamID = self.groups[team_number-1]['teamID']
         scores = []
         for mem in members_scores:
             scores.append(self.students[mem] + ':' + members_scores[mem])
@@ -117,7 +117,7 @@ class ILMS:
         submitted = False
         for tr in trs:
             td_a = tr.xpath('td/a')[0]
-            if td_a.attrib['href'].find(teamID) != -1:
+            if teamID in td_a.attrib['href']:
                 if td_a.text == '修改':
                     submitted = True
                 break
