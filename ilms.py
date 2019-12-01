@@ -106,7 +106,8 @@ class ILMS:
         teamID = self.groups[team_number-1]['teamID']
         scores = []
         for mem in members_scores:
-            scores.append(self.students[mem] + ':' + str(members_scores[mem]))
+            if mem in self.students:
+                scores.append(self.students[mem] + ':' + str(members_scores[mem]))
         scores_str = ','.join(scores)
         hw_list_resp = self.sess.get(
             'http://lms.nthu.edu.tw/course.php',
